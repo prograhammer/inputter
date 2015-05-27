@@ -1,0 +1,19 @@
+{
+    "name": "prograhammer/inputter",
+    "description": "An easy way to manage input fields",
+    "license": "BSD-2-Clause",
+    "authors": [
+        {
+            "name": "David Graham",
+            "email": "prograhammer@gmail.com"
+        }
+    ],
+    "require": {
+        "php": ">=5.3.0"
+    },
+    "autoload": {
+        "psr-0": {
+            "Prograhammer": "src/"
+        }
+    }
+}

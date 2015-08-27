@@ -11,7 +11,7 @@ class Text implements InputTypeInterface{
 
     protected $value = "";
 
-    protected $cascadeTo = "";
+    protected $cascade = [];
 
 	public $hideInUrl = null;
 
@@ -55,16 +55,20 @@ class Text implements InputTypeInterface{
 		return $this;
 	}
 
-	public function setCascadeTo($cascadeTo = ""){
-		$this->cascadeTo = $cascadeTo;
-		return $this;
-	}
+    public function getCascade(){
+        return $this->cascade;
+    }
+
+    public function setCascade($cascade = []){
+        $this->cascade = $cascade;
+        return $this;
+    }
 
 	public function getHideInUrl(){
-		return $this->hideInUrl();
+		return $this->hideInUrl;
 	}
 	public function setHideInUrl($hideInUrl = null){
-		$this->hideInUrl($hideInUrl);
+		$this->hideInUrl = $hideInUrl;
 		return $this;
 	}
 
@@ -89,7 +93,7 @@ class Text implements InputTypeInterface{
         if(!is_null($this->hideInUrl)){
 			$this->attribs['data-hide-in-url'] = $this->hideInUrl;
 		}
-		if(!empty($this->cascadeTo)){
+		if(!empty($this->cascade)){
 			$this->attribs['class'] .= " cascade";
 		}
 		$this->attribs['class'] .= " ".rtrim($prefix,"-")." inputter";

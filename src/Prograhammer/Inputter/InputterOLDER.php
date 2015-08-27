@@ -1,6 +1,5 @@
 <?php namespace Prograhammer\Inputter;
 
-use Illuminate\Http\Request;
 
 /**
  * Inputter
@@ -9,7 +8,7 @@ use Illuminate\Http\Request;
  * @package	EasyInput
  * @license	http://www.opensource.org/licenses/mit-license.php MIT
  */
-class Inputter {
+class InputterOLDER {
 
 	public $fields = array();
 
@@ -17,9 +16,7 @@ class Inputter {
 	 *
 	 * @var string
 	 */
-	protected $namespace = "";
-
-    public $request;
+	protected $prefix = "";
 
 	/**
 	 * We'll store the name of the input that changed here (during a cascading input request).
@@ -38,32 +35,50 @@ class Inputter {
 
 	private $gridder = ["sort"=>"","order"=>"","limit"=>"","page"=>""];
 
-	public function __construct(Request $request = null, $namespace = ""){
+	public function __construct(){
 
-        if(!empty($namespace)){
-            $this->namespace = $namespace;
-        }
+		// Setup inputs from extended child method
+		$this->init();
 
-        $this->init();
+		// If prefix is not defined (can be set to empty however) then generate one using the lowercase class name
+		//if(!isset($this->prefix)){
+		//	$reflect = new \ReflectionClass($this);
+		//	$this->prefix = strtolower(preg_replace('/([a-zA-Z])(?=[A-Z])/', '$1-', $reflect->getShortName()));
+		//}
 
-        if(!empty($request)){
-            $this->request = $request;
-            $this->fillFrom($this->request->input());
-        }
-
+		//$this->baseUrl = strtok($_SERVER["REQUEST_URI"],'?');
 	}
 
 	public function init(){
-		// This is an optional way to use this class.
-		// Extend this method in your own child class. Don't forget to extend the namespace property as well.
+		// Create your own extended child class and add a method to override this one
 	}
 
-	public function addField($name, $type){
-        $this->fields[$name] = new InputBuilder($name, $this->namespace, $type);
-		return $this->fields[$name];
+	public function addField($id, $type){
+
+        $this->fields[$id] = (new InputBuilder($id, $type))->setPrefix($this->prefix);
+
+        $field = "<".$this->
+
+		if ($type == "select") {
+			$this->fields[$id] = (new InputTypes\Select($id))->setPrefix($this->prefix);
+		} elseif ($type == "autocomplete") {
+			$this->fields[$id] = (new InputTypes\AutoComplete($id))->setPrefix($this->prefix);
+		} elseif ($type == "text") {
+			$this->fields[$id] = (new InputTypes\Text($id))->setPrefix($this->prefix);
+		} elseif ($type == "hidden") {
+			$this->fields[$id] = (new InputTypes\Hidden($id))->setPrefix($this->prefix);
+		} elseif ($type == "password") {
+			$this->fields[$id] = (new InputTypes\Password($id))->setPrefix($this->prefix);
+		} elseif ($type == "links") {
+			$this->fields[$id] = (new InputTypes\Links($id))->setPrefix($this->prefix);
+		} elseif ($type == "datetimepicker") {
+			$this->fields[$id] = (new InputTypes\DateTimePicker($id))->setPrefix($this->prefix);
+		}
+
+		return $this->fields[$id];
 	}
 
-	public function fillFrom($fill = array()){
+	public function fill($fill = array()){
 
 		if(!empty($fill)){
 			// Inputs
@@ -93,23 +108,19 @@ class Inputter {
 	public function cascade($parent, $previousParent="0"){
 		// Set the cascadeStatus flag to true (helpful for client to know during getOptions closures)
 		$this->cascadeStatus = true;
-        $fieldData = [];
+        $outputString = "";
 
-        $cascadeTo = $this->fields[$parent]->getCascadeTo();
-        if(empty($cascadeTo)){
-            return;
-        }
+		if(empty($parent)){ return ""; }
 
-        // Loop through and check all children, and their children, and so on...
-        $explodedChildren = explode(",",$cascadeTo);
-        foreach ($explodedChildren as $child) {
+		// Loop through and check all children, and their children, and so on...
+        foreach ($this->fields[$parent]->getCascade() as $child) {
            if ($child != $previousParent) { // <--prevents infinite loop for inputs that parent each other
-               $fieldData[$child] = $this->fields[$child]->renderArray();
-               $this->cascade($child, $parent);
+                 $outputString .= $this->fields[$child]->render('jquery');
+                 $outputString .= $this->cascade($child, $parent);
            }
         }
 
-        return json_encode($fieldData);
+        return $outputString;
 	}
 
 	/**
@@ -125,7 +136,7 @@ class Inputter {
 		
 		foreach($this->fields as $inputName => $inputObj){
 			// If input value is equal to its hideInUrl value, then input is not included in returned array
-			if(is_null($inputObj->getHideInUrl()) ||
+			if(is_null($inputObj->hideInUrl) ||
 				($includeHidden == false && $inputObj->getValue() != $inputObj->getHideInUrl()))
 			{
 				// Substitute with the alias? (helpful for validation messages)
@@ -161,11 +172,8 @@ class Inputter {
 		$data = array();
 
 		foreach($this->fields as $fieldName => $field){
-			$data[$fieldName] = $field->renderTag();
-            $data['fieldData'][$fieldName] = $field->renderArray();
+			$data[$fieldName] = $field->render();
 		}
-        $data['namespace'] = $this->namespace;
-        $data['fieldData'] = substr(json_encode($data['fieldData']), 1, -1);  // <-- remove outer curly's for IDE
 
 		return $data;
 	}

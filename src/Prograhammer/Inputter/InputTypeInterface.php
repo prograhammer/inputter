@@ -11,7 +11,7 @@ interface InputTypeInterface {
 
 	public function setOptions($options);
 
-	public function setCascadeTo($cascadeTo = "");
+	public function setCascade($cascade = []);
 
 	public function setHideInUrl($hideInUrl = null);
 

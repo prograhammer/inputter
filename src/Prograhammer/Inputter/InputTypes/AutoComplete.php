@@ -10,7 +10,7 @@ class AutoComplete implements InputTypeInterface{
 
 	private $value = "";
 
-	private $cascadeTo = "";
+	private $cascade = [];
 
 	public $hideInUrl = null;
 
@@ -53,8 +53,12 @@ class AutoComplete implements InputTypeInterface{
 		return $this;
 	}
 
-	public function setCascadeTo($cascadeTo = ""){
-		$this->cascadeTo = $cascadeTo;
+    public function getCascade(){
+        return $this->cascade;
+    }
+
+	public function setCascade($cascade = []){
+		$this->cascade = $cascade;
 		return $this;
 	}
 
@@ -67,14 +71,16 @@ class AutoComplete implements InputTypeInterface{
 	}
 
 	public function render($renderAs = 'html'){
+        $output 	= "";
+        $this->text = "";
+        $id 		= $this->id;
+        $prefix		= $this->prefix;
 
-		$output = "";
 
-		// Add dash to prefix
-		$prefix = "";
-		if(!empty($this->prefix)){
-			$prefix .= "-";
-		}
+        // Add dash to prefix
+        if(!empty($prefix)){
+            $prefix .= "-";
+        }
 
 		// Get possible values (as an array or as an anonymous function that returns an array)
 		// The array should be in the form of   [0]['text']	  [1]['text']   [...]['text']
@@ -90,7 +96,7 @@ class AutoComplete implements InputTypeInterface{
 		if(!isset($this->attribs['class'])){
 			$this->attribs['class'] = "";
 		}
-		if(!empty($this->cascadeTo)){
+		if(!empty($this->cascade)){
 			$this->attribs['class'] .= " cascade";
 		}
 		$this->attribs['class'] .= " ".$this->prefix." inputter";

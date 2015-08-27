@@ -1,6 +1,5 @@
 <?php namespace Prograhammer\Inputter;
 
-use Illuminate\Http\Request;
 
 /**
  * Inputter
@@ -9,7 +8,7 @@ use Illuminate\Http\Request;
  * @package	EasyInput
  * @license	http://www.opensource.org/licenses/mit-license.php MIT
  */
-class Inputter {
+class InputterOLD {
 
 	public $fields = array();
 
@@ -18,8 +17,6 @@ class Inputter {
 	 * @var string
 	 */
 	protected $namespace = "";
-
-    public $request;
 
 	/**
 	 * We'll store the name of the input that changed here (during a cascading input request).
@@ -38,24 +35,22 @@ class Inputter {
 
 	private $gridder = ["sort"=>"","order"=>"","limit"=>"","page"=>""];
 
-	public function __construct(Request $request = null, $namespace = ""){
+	public function __construct(){
 
-        if(!empty($namespace)){
-            $this->namespace = $namespace;
-        }
+		// Setup inputs from extended child method
+		$this->init();
 
-        $this->init();
+		// If prefix is not defined (can be set to empty however) then generate one using the lowercase class name
+		//if(!isset($this->prefix)){
+		//	$reflect = new \ReflectionClass($this);
+		//	$this->prefix = strtolower(preg_replace('/([a-zA-Z])(?=[A-Z])/', '$1-', $reflect->getShortName()));
+		//}
 
-        if(!empty($request)){
-            $this->request = $request;
-            $this->fillFrom($this->request->input());
-        }
-
+		//$this->baseUrl = strtok($_SERVER["REQUEST_URI"],'?');
 	}
 
 	public function init(){
-		// This is an optional way to use this class.
-		// Extend this method in your own child class. Don't forget to extend the namespace property as well.
+		// Create your own extended child class and add a method to override this one
 	}
 
 	public function addField($name, $type){
@@ -63,7 +58,7 @@ class Inputter {
 		return $this->fields[$name];
 	}
 
-	public function fillFrom($fill = array()){
+	public function fill($fill = array()){
 
 		if(!empty($fill)){
 			// Inputs

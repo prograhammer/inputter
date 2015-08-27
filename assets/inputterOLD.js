@@ -11,8 +11,11 @@
 		element : {},
 		firstLoad : true,
 		cascadeStatus : false,
+		errors : false,
 		settings: {
 			history : false,
+			messagesSelector : "#messages",
+			errorsSelector : "#errors",
 			ajax	: 	{
 				'url': 				'',
 				'type': 			'GET',
@@ -39,8 +42,9 @@
 		init : function(element, settings) {
 			this.element = element;
 
-			// Setup autocompletes
+            this.chosen();
 			this.autocomplete();
+			this.datetimepicker();
 
 			// Create a new object and attach it to this element's data,
 			// so we can do stuff like $('#selector').data('inputter').get();
@@ -56,8 +60,8 @@
 				inputter.settings.ajax.url = [location.protocol, '//', location.host, location.pathname].join('');
 			}
 			if(inputter.settings.cascade.url == ""){
-				inputter.settings.cascade.url = [location.protocol, '//', location.host, location.pathname].join('');
-			}
+                inputter.settings.cascade.url = [location.protocol, '//', location.host, location.pathname].join('');
+            }
 
 
 			// Bind an ajax call on cascading input change
@@ -108,8 +112,8 @@
 				// For all other cascades
 				else {
 					// Show loading image
-					if(inputter.cascade.useLoadImg == true){
-						inputter.loadImg("#".$(this).attr('id'));
+					if(cascade.useLoadImg == true){
+						inputter.loadImg("#" + _this.attr('id'));
 					}
 
 					$.ajax({
@@ -124,7 +128,7 @@
 							$(inputter.element).filter(".chosen").trigger("chosen:updated");
 
 							cascade.success(response);
-							parent.unloadImg("#".$(this).attr('id'));
+                            inputter.unloadImg("#" + _this.attr('id'));
 
 							//if(typeof window[config.callback] == 'function'){
 							//	window[config.callback]();
@@ -195,21 +199,13 @@
 			var _this = this;
 			$(this.element).filter("[data-type='autocomplete']").each(function(){
 				$(this).autocomplete({
-					minLength: 1,
-					source: $(this).data("json"),
+					minChars: 1,
+					lookup: $(this).data("json"),
 					appendTo: "body",
-					focus: function (event, ui){
-						$(this).val(ui.item.label);
-						$(this).data("inputter-value", ui.item.value);
-						return false;
-					},
-					select: function (event, ui){
-						$(this).val(ui.item.label);
-						$(this).data("inputter-value", ui.item.value);
-						return false;
-					},
-					close: function (event, ui){
-						$(this).autocomplete("option","appendTo","body"); // Fixes the autocomplete appearing behind dialogs
+					onSelect: function (suggestion){
+						console.log(suggestion);
+						$(this).val(suggestion.value);
+						$(this).data("inputter-value", suggestion.data);
 					}
 				});
 				$(this).change(function(){
@@ -219,42 +215,18 @@
 				});
 			});
 		},
-		autocompleteTypeahead : function(el){
-			// Setup autocomplete using twitter's typeahead (w/Bloodhound)
-			$(el).filter("[data-type='autocomplete']").each(function(){
-				var states = $(this).data("json");
-				// constructs the suggestion engine
-				var states = new Bloodhound({
-					datumTokenizer: Bloodhound.tokenizers.obj.whitespace('value'),
-					queryTokenizer: Bloodhound.tokenizers.whitespace,
-					// `states` is an array of state names defined in "The Basics"
-					local: $.map(states, function(state) { return { id: state.value, value: state.text }; })
-				});
+        datetimepicker : function(){
+            var _this = this;
+            var defaults = { 'fontAwesome': true,
+                             'bootcssVer': 3 };
 
-				// kicks off the loading/processing of `local` and `prefetch`
-				states.initialize();
-
-				var parent = this;
-
-				$(this).typeahead({
-						hint: true,
-						highlight: true,
-						minLength: 1
-					},
-					{
-						name: 'states',
-						displayKey: 'value',
-						// `ttAdapter` wraps the suggestion engine in an adapter that
-						// is compatible with the typeahead jQuery plugin
-						source: states.ttAdapter()
-					}).on('typeahead:selected', function(e, data, dataSetName){
-						// Add the value to the element's data attribute so we can grab it later (ie. using get())
-						$(parent).data("value", data.id);
-						alert($(parent).data("value"));
-					});
-
-			});
-		},
+            $(this.element).filter("[data-type='datetimepicker']").each(function(){
+                console.log($.extend(defaults, $(this).data("json")));
+                $(this).datetimepicker(
+                    $.extend(defaults, $(this).data("json"))
+                );
+            });
+        },
 		clear : function(data){
 			var inputter = this;
 
@@ -283,9 +255,11 @@
 			// Since we can't do this: function(historyPush = true)...
 			historyPush = typeof historyPush !== 'undefined' ? historyPush : true;
 
-			// Gather data (and Worf, Geordi, and the rest of the away team...)
+			// Gather data (and Worf, and Geordi, and the rest of the away team...)
 			var data = {};
+            var dataInUrl = {};
 			$(inputter.element).each( function(){
+
 				// Multi-selects: turn values into comma-delimited string
 				if($(this).is('select') && $(this).attr('multiple') == 'multiple'){
 					data[$(this).data('id')] = "";
@@ -320,10 +294,20 @@
 				else if($(this).data('type') != "file" && $(this).data('type') != "label") {
 					data[$(this).data('id')] = $(this).val();  // Use non-prefixed ID
 				}
+
+                // Exclude if equal to "hide in url" value
+                if (typeof $(this).data('hide-in-url') !== 'undefined'){
+                    if (data[$(this).data('id')] != $(this).data('hide-in-url')) {
+                        dataInUrl[$(this).data('id')] = data[$(this).data('id')];
+                    }
+                }else{
+                    dataInUrl[$(this).data('id')] = data[$(this).data('id')];
+                }
 			});
+
 			// Push to history
 			if(historyPush && inputter.settings.history){
-				inputter.historyPush(inputter.settings.ajax.url, data, inputter.settings.ajax.dataNoUrl, inputter.settings.ajax.loadImgSelector);
+				inputter.historyPush(inputter.settings.ajax.url, dataInUrl, inputter.settings.ajax.dataNoUrl, inputter.settings.ajax.loadImgSelector);
 			}
 
 			return data;
@@ -375,34 +359,32 @@
 			else if((elemBottom - docViewTop) > 50 && (elemBottom - docViewTop) < (elem_height - 50)){
 				top = 100 - parseInt((elemBottom - docViewTop)/elem_height * 100/2);
 			}
-			alert('here');
-			var img_src   = "ajax-loader.gif";
+			var img_src   = "ajax-loading.gif";
 
-			var img_style = "position:absolute;" 		+
-				"left:50%;" 				+
+			var img_style = "position:absolute;"	+
+				"left:50%;" 			+
 				"top:" + top + "%;"		+
-				"margin-left:-25px;"		+
+				"margin-left:-25px;"	+
 				"margin-right:-25px;" 	+
-				"margin-top:-25px;" 		+
+				"margin-top:-25px;" 	+
 				"margin-bottom:-25px;"	+
-				"display:block;"			+
-				"width:50px;"				+
+				"display:block;"		+
+				"z-index:200;"			+
+				"width:50px;"			+
 				"height:50px;";
 
 			$(selector).css('opacity','0.3');
-			$(selector).wrap("<div class='easy_ajax_tmp012345' style='position:relative;'>");
-			$(selector).parent().append("<img class='inputter_tmp012345' style='" + img_style + "' src='" + img_src + "'>");
-			$(selector).parent().append("<div class='inputter_tmp012345' style='clear:both;'></div>");
+			$(selector).wrap("<div class='easy-ajax-tmp012345' style='position:relative;'>");
+			$(selector).parent().append("<img class='inputter-tmp012345' style='" + img_style + "' src='/images/" + img_src + "'>");
+			$(selector).parent().append("<div class='inputter-tmp012345' style='clear:both;'></div>");
 
 
 		},
 		unloadImg : function(selector){
-			if(selector.length == 0){ return false;}
-
-			$(selector).css('opacity','');
-			if($('.inputter-temp').length){
-				$(selector).unwrap();
-				$(selector).parent().children('.inputter-temp').remove();
+			if(selector.length <= 1){ return false;}
+			if($(selector).parent().children('.inputter-tmp012345').length){
+    			$(selector).unwrap();
+				$(selector).parent().children('.inputter-tmp012345').remove();
 			}
 		},
 		historyPush : function(url, data, dataNoUrl, loadImgSelector) {
@@ -420,6 +402,76 @@
 				}
 				history.pushState({inputter: {url: url, data: dataNoUrl, loadImgSelector: loadImgSelector}},'', url);
 			}
+		},
+		handleResponse : function(response) {
+			this.errors = false;
+
+			// Check for valid json response
+			var isJson = true;
+			try{
+				var json = $.parseJSON(response);
+			}
+			catch(err){
+				isJson = false;
+			}
+
+			// Output html to errors selector
+			if(isJson && json.hasOwnProperty("errors")){
+				var index;
+				var output = "";
+				this.errors = true;
+                var _this = this;
+				for (index = 0; index < json.errors.length; ++index) {
+					output += "<li>" + json.errors[index] + "</li>";
+				}
+				output = "<div class='alert alert-danger'><ul>" + output + "</ul></div>";
+				$(this.settings.errorsSelector).html(output);
+
+                // Scroll to errors
+                $('html, body').animate({
+                     scrollTop: $(this.settings.errorsSelector).offset().top - 10
+                }, 1000);
+
+                // Later...fade out the message and remove
+                setTimeout(function(){
+                    $(_this.settings.errorsSelector).fadeOut("slow",
+                        function(){
+                            $(_this.settings.errorsSelector).html("");
+                            $(_this.settings.errorsSelector).show();
+                        }
+                    );
+                }, 3500);
+			}
+
+			// Output html to messages selector
+			if(isJson && json.hasOwnProperty("messages")){
+				var index;
+				var output = "";
+                var _this = this;
+				for (index = 0; index < json.messages.length; ++index) {
+					output += "<li>" + json.messages[index] + "</li>";
+				}
+				output = "<div class='alert alert-info'><ul>" + output + "</ul></div>";
+				$(this.settings.messagesSelector).html(output);
+
+                // Scroll to messages
+                $('html, body').animate({
+                    scrollTop: $(this.settings.messagesSelector).offset().top - 10
+                }, 1000);
+
+                // Later...fade out the message and remove
+                setTimeout(function(){
+                    $(_this.settings.messagesSelector).fadeOut("slow",
+                        function(){
+                            $(_this.settings.messagesSelector).html("");
+                            $(_this.settings.messagesSelector).show();
+                        }
+                    );
+                }, 3500);
+            }
+		},
+		hasErrors : function() {
+			return this.errors;
 		},
 		ajax : function(settings) {
 			var inputter = this;

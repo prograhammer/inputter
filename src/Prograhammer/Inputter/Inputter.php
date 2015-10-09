@@ -1,6 +1,7 @@
 <?php namespace Prograhammer\Inputter;
+use Illuminate\Contracts\Support\MessageBag as MessageBagInterface;
+use Prograhammer\LumenCQS\Contracts\CommandInterface;
 
-use Illuminate\Http\Request;
 
 /**
  * Inputter
@@ -9,17 +10,20 @@ use Illuminate\Http\Request;
  * @package	EasyInput
  * @license	http://www.opensource.org/licenses/mit-license.php MIT
  */
-class Inputter {
+class Inputter implements InputterInterface {
 
-	public $fields = array();
+	private $fields = [];
+	private $commands = [];
+	private $settings = [
+		"namespace"=>"",
+		"globalClasses"=>""
+	];
 
 	/**
 	 *
 	 * @var string
 	 */
 	protected $namespace = "";
-
-    public $request;
 
 	/**
 	 * We'll store the name of the input that changed here (during a cascading input request).
@@ -38,44 +42,53 @@ class Inputter {
 
 	private $gridder = ["sort"=>"","order"=>"","limit"=>"","page"=>""];
 
-	public function __construct(Request $request = null, $namespace = ""){
+	private $messageBag;
 
-        if(!empty($namespace)){
-            $this->namespace = $namespace;
-        }
-
-        $this->init();
-
-        if(!empty($request)){
-            $this->request = $request;
-            $this->fillFrom($this->request->input());
-        }
-
+	public function __construct(MessageBagInterface $messageBag){
+		$this->messageBag = $messageBag;
 	}
 
-	public function init(){
-		// This is an optional way to use this class.
-		// Extend this method in your own child class. Don't forget to extend the namespace property as well.
+	public function withSettings($settings = []){
+		$this->settings = array_replace_recursive($this->settings, $settings);
+		return $this;
+	}
+
+	public function getNamespace(){
+		return $this->settings["namespace"];
+	}
+
+	public function getGlobalClasses(){
+		return $this->settings["globalClasses"];
 	}
 
 	public function addField($name, $type){
-        $this->fields[$name] = new InputBuilder($name, $this->namespace, $type);
+		// @todo Allow for setContents to be directly set to an array, string, or closure(fields,values)
+		// @todo When do we invoke it? this is a problem
+        $this->fields[$name] = new InputBuilder($this, $name, $type);
 		return $this->fields[$name];
 	}
 
-	public function fillFrom($fill = array()){
+	public function fields($key = null){
+		if(empty($key)){
+			return $this->fields;
+		}
+		return $this->fields[$key];
+	}
 
+	public function values(){
+		$values = [];
+		foreach($this->fields as $fieldName => $field){
+			$values[$fieldName] = $field->getValue();
+		}
+		return $values;
+	}
+
+	public function fillWith($fill = array()){
 		if(!empty($fill)){
 			// Inputs
 			foreach($this->fields as $inputName => $inputObj){
 				if(isset($fill[$inputName])){
 					$inputObj->setValue($fill[$inputName]);
-				}
-			}
-			// Gridder params
-			foreach($this->gridder as $inputName => $inputValue){
-				if(isset($fill[$inputName])){
-					$this->gridder[$inputName] = $fill[$inputName];
 				}
 			}
 		}
@@ -104,7 +117,8 @@ class Inputter {
         $explodedChildren = explode(",",$cascadeTo);
         foreach ($explodedChildren as $child) {
            if ($child != $previousParent) { // <--prevents infinite loop for inputs that parent each other
-               $fieldData[$child] = $this->fields[$child]->renderArray();
+			   $this->fields[$child]->runContents($this->fields(), $this->values());
+			   $fieldData[$child] = $this->fields[$child]->renderArray();
                $this->cascade($child, $parent);
            }
         }
@@ -141,6 +155,32 @@ class Inputter {
 		return $data;
 	}
 
+	public function addCommand($key, CommandInterface $command){
+		$this->commands[$key] = $command;
+	}
+
+	public function commands(){
+		return $this->commands;
+	}
+
+	public function getMessageBag(){
+		return $this->messageBag;
+	}
+
+	public function hasErrors(){
+		return $this->messageBag->has("errors");
+	}
+
+	public function dispatchCommands(){
+		foreach($this->fields as $fieldName => $field){
+			$data[$fieldName] = $field->runCommand($this->fields(), $this->values(), $this->commands);
+		}
+		foreach($this->commands as $command){
+			$command->handle();
+			$this->getMessageBag()->merge($command);
+		}
+	}
+
 	public function toArrayUseAlias(){
 		return $this->toArray(true);
 	}
@@ -161,13 +201,17 @@ class Inputter {
 		$data = array();
 
 		foreach($this->fields as $fieldName => $field){
+			$field->runContents($this->fields(), $this->values());
 			$data[$fieldName] = $field->renderTag();
             $data['fieldData'][$fieldName] = $field->renderArray();
 		}
         $data['namespace'] = $this->namespace;
+		$data['errors'] = $this->getMessageBag()->get("errors");
+		$data['messages'] = $this->getMessageBag()->get("messages");
         $data['fieldData'] = substr(json_encode($data['fieldData']), 1, -1);  // <-- remove outer curly's for IDE
 
 		return $data;
 	}
+
 
 }

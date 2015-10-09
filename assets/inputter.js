@@ -92,7 +92,7 @@
     Inputter.DEFAULTS = {
         fieldData: {},
         messagesSelector: "#messages",
-        errorsSelector: "#errors",
+        clearParentSelector: "",
         history: {
           active: true
         },
@@ -114,6 +114,7 @@
 
     Inputter.prototype.init = function() {
         this.initFields();
+        this.initClear();
         this.initCascade();
         this.initHistory();
     };
@@ -209,6 +210,22 @@
             method = 'set' + capitalizeFirstLetter(field.type);
             newValue = params[key];
             executeFunctionByName(method, this, field, newValue, this);
+        }
+    };
+
+    Inputter.prototype.initClear = function() {
+        var that = this;
+        var selector = this.options.clearParentSelector;
+        var fields = [];
+
+        if(selector != ''){
+            $(selector).on('click', '[data-clear-input]', function(){
+                var fieldNames = $(this).data("clear-input").split(",");
+                for (var i in fieldNames) {
+                    fields[fieldNames[i]] = "";
+                }
+                that.set(fields);
+            });
         }
     };
 
@@ -339,6 +356,9 @@
             isJson = false;
         }
 
+        // Clear any previous messages/errors at selector
+        $(this.options.messagesSelector).html("");
+
         // Output html to errors selector
         if (isJson && json.hasOwnProperty("errors")) {
             var index;
@@ -348,22 +368,7 @@
                 output += "<li>" + json.errors[index] + "</li>";
             }
             output = "<div class='alert alert-danger'><ul>" + output + "</ul></div>";
-            $(this.options.errorsSelector).html(output);
-
-            // Scroll to errors
-            $('html, body').animate({
-                scrollTop: $(that.options.errorsSelector).offset().top - 10
-            }, 1000);
-
-            // Later...fade out the message and remove
-            setTimeout(function () {
-                $(that.options.errorsSelector).fadeOut("slow",
-                    function () {
-                        $(that.options.errorsSelector).html("");
-                        $(that.options.errorsSelector).show();
-                    }
-                );
-            }, 3500);
+            $(this.options.messagesSelector).append(output);
         }
 
         // Output html to messages selector
@@ -374,12 +379,7 @@
                 output += "<li>" + json.messages[index] + "</li>";
             }
             output = "<div class='alert alert-info'><ul>" + output + "</ul></div>";
-            $(this.options.messagesSelector).html(output);
-
-            // Scroll to messages
-            $('html, body').animate({
-                scrollTop: $(that.options.messagesSelector).offset().top - 10
-            }, 1000);
+            $(this.options.messagesSelector).append(output);
 
             // Later...fade out the message and remove
             setTimeout(function () {
@@ -391,6 +391,11 @@
                 );
             }, 3500);
         }
+
+        // Scroll to messages
+        $('html, body').animate({
+            scrollTop: $(that.options.messagesSelector).offset.top - 10
+        }, 1000);
     };
 
     Inputter.prototype.hasErrors = function() {
@@ -427,7 +432,7 @@
             }
 
             if(!cascading){
-                $radio.after('<label for="' + field.id + key + '">' + content.text + '</label>');
+                $radio.after('<label for="' + field.id + key + '" class="inputter-label">' + content.text + '</label>');
             }
         }
     };
@@ -448,10 +453,10 @@
 
         // Get value to be selected, or value(s) if "multiple"
         if ($selectTag.is("[multiple]")) {
-            if(!field.options.hasOwnProperty('multiDelim')){
-                field.options['multiDelim'] = '-';
+            if(!field.options.hasOwnProperty('delimiter')){
+                field.options['delimiter'] = '-';
             }
-            selectedValues = field.value.split(field.options.multiDelim);
+            selectedValues = field.value.split(field.options.delimiter);
             numSelected = selectedValues.length;
         }
         else {
@@ -539,7 +544,7 @@
 
         // Now make it an autocomplete
         $tag.autocomplete(
-            $.extend(defaultFieldOptions, field.options)
+            $.extend(field.options, defaultFieldOptions)
         );
     };
 
@@ -548,6 +553,8 @@
 
         var defaultFieldOptions = {
             plugins: ['remove_button'],
+            delimiter: '-',
+            allowEmptyOption: true,
             valueField: 'value',
             labelField: 'text',
             searchField: 'text',
@@ -557,7 +564,7 @@
 
         if(!cascading) {
             $tag.selectize(
-                $.extend(defaultFieldOptions, field.options)
+                $.extend(field.options, defaultFieldOptions)
             )
         }
 
@@ -581,7 +588,7 @@
 
         if(!cascading) {
             $("#" + field.id).chosen(
-                $.extend(defaultFieldOptions, field.options)
+                $.extend(field.options, defaultFieldOptions)
             )
         }
 
@@ -602,14 +609,14 @@
 
         if(!cascading) {
             $("#" + field.id).datetimepicker(
-                $.extend(defaultFieldOptions, field.options)
+                $.extend(field.options, defaultFieldOptions)
             )
         }
     };
 
 
 
-    // GETs
+    // GETTERS
     // =========================
 
     Inputter.prototype.getText = function(field, that) {
@@ -630,7 +637,7 @@
 
         if ($tag.is("[multiple]")) {
             if($tag.val() !== null){
-                return ($tag.val()).join(field.options.multiDelim);
+                return ($tag.val()).join(field.options.delimiter);
             }
             return "";
         }
@@ -672,7 +679,7 @@
     };
 
 
-    // SETs
+    // SETTERS
     // =========================
 
     Inputter.prototype.setText = function(field, newValue, that) {
@@ -692,6 +699,12 @@
         var $tag = $("#" + field.id);
 
         $tag.val(newValue);
+    };
+
+    Inputter.prototype.setSelectize = function(field, newValue, that) {
+        var $tag = $("#" + field.id);
+
+        $tag[0].selectize.setValue(newValue);
     };
 
     Inputter.prototype.setChosen = function(field, newValue, that) {

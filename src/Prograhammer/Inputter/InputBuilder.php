@@ -34,9 +34,11 @@ class InputBuilder{
                                 "data-type"=> "",
                                 "data-hide-in-url"];
 
-    private $multiDelim = "-";
+    private $delimiter = "-";
 
     private $attribType = "";
+
+    private $inputter;
 
     public $entityName = "";
 
@@ -46,12 +48,21 @@ class InputBuilder{
 
     public $contents = [];
 
+    public $onCommand;
 
-    public function __construct($name, $namespace = "", $type){
-        $this->namespace = $namespace;
+
+    /**
+     * @param string $name
+     * @param string $namespace
+     * @param string $type
+     * @param InputterInterface $inputter
+     */
+    public function __construct($inputter, $name, $type){
+        $this->inputter = $inputter;
         $this->name = $name;
-        $this->id = empty($namespace) ? $name : $namespace."-".$name;
         $this->type = $type;
+        $this->namespace = $this->inputter->getNamespace();
+        $this->id = empty($namespace) ? $name : $namespace."-".$name;
 
         // For convenience, set tag defaults for typical html inputs
         if($this->type == "text" || $this->type == "password" || $this->type == "hidden" || $this->type == "radio" || $this->type == "checkbox"){
@@ -67,10 +78,6 @@ class InputBuilder{
         }
     }
 
-    public function mapEntity($entityName){
-        $this->entityName = $entityName;
-        return $this;
-    }
 
     public function getValue(){
         return $this->value;
@@ -94,8 +101,8 @@ class InputBuilder{
         return $this;
     }
 
-    public function setMultiDelim($delim){
-        $this->multiDelim = $delim;
+    public function setDelimiter($delim){
+        $this->delimiter = $delim;
 
         return $this;
     }
@@ -136,6 +143,35 @@ class InputBuilder{
         return $this;
     }
 
+    public function runContents($fields, $values){
+        if(!is_callable($this->contents)){
+            return;
+        }
+
+        try {
+            $this->contents = call_user_func_array($this->contents, [$fields, $values]);
+        } catch (\Exception $e){
+            $this->inputter->getMessageBag()->add("errors", $e->getMessage());
+        }
+    }
+
+    public function onCommand($onCommand){
+        $this->onCommand = $onCommand;
+        return $this;
+    }
+
+    public function runCommand($fields, $values, $commands){
+        if(!is_callable($this->onCommand)){
+            return;
+        }
+
+        try {
+            call_user_func_array($this->onCommand, [$fields, $values, $commands]);
+        } catch (\Exception $e){
+            $this->inputter->getMessageBag()->add("errors", $e->getMessage());
+        }
+    }
+
     public function getCascadeTo(){
         return $this->cascadeTo;
     }
@@ -171,7 +207,7 @@ class InputBuilder{
 
         // Create string of all the attributes to be inserted into the HTML tag
         $attributes = "";
-        $attributes .= "id='".$this->id."' ";
+        $attributes .= "id='".(ltrim($this->namespace."-","-")).$this->id."' ";
         $attributes .= "name='".$this->name."' ";
         $attributes .= "data-name='".$this->name."' ";
         $attributes .= "data-type='".$this->type."' ";
@@ -184,11 +220,7 @@ class InputBuilder{
 
         // Get number of tags if radio/checkbox
         if($this->type == "radio" || $this->type == "checkbox"){
-            if (is_callable($this->contents)) {
-                $numTags = count(call_user_func($this->contents));
-            } else{
-                $numTags = count($this->contents);
-            }
+            $numTags = count($this->contents);
         }
 
         // Loop through tag creation
@@ -197,7 +229,7 @@ class InputBuilder{
 
             // Add a suffix number to the tag's ID if there is more than one tag (radio/checkbox)
             if($numTags > 1){
-                $tempTag = str_replace($this->id, $this->id.$i, $tempTag);
+                $tempTag = str_replace("id='".(ltrim($this->namespace."-","-")).$this->id."'", "id='".(ltrim($this->namespace."-","-")).$this->id.$i."'", $tempTag);
             }
 
             $tag .= $tempTag;
@@ -210,17 +242,12 @@ class InputBuilder{
     public function renderArray(){
         $data = [];
 
-        $data['id'] = $this->id;
+        $data['id'] = $this->namespace."-".$this->id;
         $data['type'] = $this->type;
         $data['value'] = $this->value;
         $data['options'] = $this->options;
         $data['hideInUrl'] = $this->hideInUrl;
-
-        if (is_callable($this->contents)) {
-            $data['contents'] = call_user_func($this->contents);
-        } else{
-            $data['contents'] = $this->contents;
-        }
+        $data['contents'] = $this->contents;
 
         return $data;
     }

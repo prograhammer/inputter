@@ -9,11 +9,13 @@ trait InputterDecoratorTrait {
 	private $messageBag;
 
 	public function fillWith($input = []){
-		return $this->inputter->fillWith($input);
+		$this->inputter->fillWith($input);
+		return $this;
 	}
 
 	public function withSettings($settings = []){
-		return $this->inputter->withSettings($settings);
+		$this->inputter->withSettings($settings);
+		return $this;
 	}
 
 	public function getNamespace(){
@@ -36,23 +38,14 @@ trait InputterDecoratorTrait {
 		return $this->inputter->toArray($useAlias, $includeHidden);
 	}
 
-	public function toCommand(){
-		return $this->inputter->toCommand();
-	}
-
 	public function fields($key = null)
 	{
 		return $this->inputter->fields($key);
 	}
 
-	public function values()
+	public function fillCommands()
 	{
-		return $this->inputter->values();
-	}
-
-	public function commands()
-	{
-		return $this->inputter->commands();
+		return $this->inputter->fillCommands();
 	}
 
 	public function render(){

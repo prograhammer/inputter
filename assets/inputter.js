@@ -14,11 +14,199 @@
  * @TODO SetSelect (for multiples), and also setAutocomplete, setFiles
  * @TODO Have jquery select the SELECT option instead of in loop?
  * @TODO Default delimeters for multiple
+ * @TODO improve Select2 code (use underscore.js, dive deeper into codebase, AMD/decorators/etc.)
  */
+
+$.fn.select2.amd.define('select2/data/customAdapter', ['select2/data/array', 'select2/utils'],
+    function (ArrayData, Utils) {
+        function CustomDataAdapter($element, options) {
+            CustomDataAdapter.__super__.constructor.call(this, $element, options);
+        }
+
+        Utils.Extend(CustomDataAdapter, ArrayData);
+
+        CustomDataAdapter.prototype.select = function (data) {
+            var value = null;
+
+            if (!this.options.get('multiple')) {
+                value = data.id
+            } else {
+                value = [];
+                if(this.$element.data('value') != null){
+                    value = this.$element.data('value');
+                }
+                value.push(data.id);
+            }
+
+            this.$element.data('value', value);
+            this.current(function (allData) { });
+            this.$element.trigger('change');
+        };
+
+        CustomDataAdapter.prototype.unselect = function (data) {
+            var value = this.$element.data('value');
+
+            if (!this.options.get('multiple')) {
+                value = [value];
+            }
+
+            // Remove value
+            for(var i in value){
+                if(value[i]==data.id){
+                    value.splice(i,1);
+                    break;
+                }
+            }
+
+            this.$element.data('value', value);
+            this.current(function (allData) { });
+            this.$element.trigger('change');
+        };
+
+        // Looks to see if $element.data('value') can be a current selection
+        CustomDataAdapter.prototype.current = function (callback) {
+            var found = [],
+                findValue = this.$element.data('value'),
+                jsonData = this.$element.data('jsonData'),
+                jsonMap = this.$element.data('jsonMap');
+
+            if(!this.$element.prop('multiple')){
+                findValue = [findValue];
+            }
+
+            // Prevent unnecessary repeated calls?
+            var prevFound = this.$element.data('prevFound') || {};
+            var matches = false;
+            if(prevFound[0]){
+                matches = true;
+                if(findValue.length != prevFound.length){
+                    matches = false;
+                } else {
+                    for (var v = 0; v < findValue.length; v++) {
+                        if(findValue[v] != prevFound[v].id) {
+                            matches = false;
+                        }
+                    }
+                }
+            }
+
+            if(matches){
+                callback(prevFound);
+                return;
+            }
+
+            // Clear source select
+            this.$element.html("");
+
+            // Query value(s)
+            var foundFlag = false;
+            if(findValue !== null) {
+                for (var v = 0; v < findValue.length; v++) {
+                    for (var i = 0, len = jsonData.length; i < len; i++) {
+                        foundFlag = false;
+                        if(jsonData[i].children) {
+                            for (var j = 0, lenDeep = jsonData[i].children.length; j < lenDeep; j++) {
+                                if (findValue[v] == jsonData[i].children[j][jsonMap.id]){
+                                    found.push({id: jsonData[i].children[j][jsonMap.id], text: jsonData[i].children[j][jsonMap.text]});
+                                    if(this.$element.find("option[value='" + findValue[v] + "']").length == 0) {
+                                        if(this.$element.find('optgroup[label="'+ jsonData[i][jsonMap.text] + '"]').length == 0){
+                                            this.$element.append('<optgroup label="' + jsonData[i][jsonMap.text] + '"></optgroup>');
+                                        }
+                                        this.$element.find('optgroup[label="'+ jsonData[i][jsonMap.text] + '"]')
+                                            .append(new Option(jsonData[i].children[j][jsonMap.text], jsonData[i].children[j][jsonMap.id]));
+                                    }
+                                    foundFlag = true;
+                                    break;
+                                }
+                            }
+                        }
+                        else if (findValue[v] == jsonData[i][jsonMap.id]){
+                            found.push({id: jsonData[i][jsonMap.id], text: jsonData[i][jsonMap.text]});
+                            if(this.$element.find("option[value='" + findValue[v] + "']").length == 0) {
+                                this.$element.append(new Option(jsonData[i][jsonMap.text], jsonData[i][jsonMap.id]));
+                            }
+                            foundFlag = true;
+                            break;
+                        }
+                        if(foundFlag) { break; }
+                    }
+                }
+            }
+
+            // Set found matches as selected
+            for (var v = 0; v < found.length; v++) {
+                this.$element.find("option[value='" + found[v].id + "']").prop("selected", true).attr("selected","selected");
+            }
+
+            // If nothing was found, then set to top option (for single select)
+            if (!found.length  && this.$element.prop('multiple')){
+                this.$element.data('value',null);
+            }
+            if (!found.length && !this.$element.prop('multiple')) {  // default to top option
+                if(jsonData[0].children){
+                    found.push({id: jsonData[0].children[0][jsonMap.id], text: jsonData[0].children[0][jsonMap.text]});
+                    if(this.$element.find('optgroup[label="'+ jsonData[0][jsonMap.text] + '"]').length == 0){
+                        this.$element.append('<optgroup label="' + jsonData[0][jsonMap.text] + '"></optgroup>');
+                    }
+                    this.$element.find('optgroup[label="'+ jsonData[0][jsonMap.text] + '"]')
+                        .append(new Option(jsonData[0].children[0][jsonMap.text], jsonData[0].children[0][jsonMap.id]));
+                } else {
+                    found.push({id: jsonData[0][jsonMap.id], text: jsonData[0][jsonMap.text]});
+                    this.$element.html(new Option(jsonData[0][jsonMap.text], jsonData[0][jsonMap.id], true, true));
+                    this.$element.data('value', jsonData[0][jsonMap.id]);
+                }
+            }
+
+            this.$element.data('prevFound', found);
+            callback(found);
+        };
+
+        CustomDataAdapter.prototype.query = function (params, callback) {
+            if (!("page" in params)) {
+                params.page = 1;
+            }
+            var jsonData = this.$element.data('jsonData'),
+                pageSize = this.$element.data('pageSize'),
+                jsonMap = this.$element.data('jsonMap');
+
+            var results = $.map(jsonData, function(obj) {
+                if(obj.children){
+                    return {
+                        text: obj.text,
+                        children: $.map(obj.children, function(obj) {
+                            if(new RegExp(params.term, "i").test(obj[jsonMap.text])) {
+                                return {
+                                    text: obj[jsonMap.text],
+                                    id: obj[jsonMap.id]
+                                };
+                            }
+                        })
+                    }
+                } else {
+                    if(new RegExp(params.term, "i").test(obj[jsonMap.text])) {
+                        return {
+                            text: obj[jsonMap.text],
+                            id: obj[jsonMap.id]
+                        };
+                    }
+                }
+            });
+            callback({
+                results:results.slice((params.page - 1) * pageSize, params.page * pageSize),
+                pagination:{
+                    more:results.length >= params.page * pageSize
+                }
+            });
+        };
+
+        return CustomDataAdapter;
+
+    });
+
+var jsonAdapter=$.fn.select2.amd.require('select2/data/customAdapter');
 
 ! function ($) {
     'use strict';
-
 
     // TOOLS DEFINITION
     // ======================
@@ -234,7 +422,7 @@
         var that = this;
 
         // Bind an ajax call on cascading input change
-        this.$el.filter(".cascade").bind("change autocompleteclose", function () {
+        this.$el.filter(".cascade").bind("change", function () {
             var cascade = that.options.cascade;
             var cascadeParent = $(this).data('name');
             cascade.moreData.cascade = cascadeParent;
@@ -548,33 +736,26 @@
         );
     };
 
-    Inputter.prototype.initSelectize = function(field, cascading, that) {
+    Inputter.prototype.initSelect2 = function(field, cascading, that) {
         var $tag = $("#" + field.id);
 
         var defaultFieldOptions = {
-            plugins: ['remove_button'],
-            delimiter: '-',
-            allowEmptyOption: true,
-            valueField: 'value',
-            labelField: 'text',
-            searchField: 'text',
-            options: field.contents,
-            items: field.value.split('-')
+            ajax: {},
+            theme: "bootstrap",
+            width: '100%',
+            escapeMarkup: function (text) { return text; },
+            dataAdapter: jsonAdapter
+        };
+
+        var defaultDataOptions = {
+            jsonData: field.contents,
+            jsonMap: {id: "value", text: "text"},
+            value: field.value.split('-'),
+            pageSize: 50
         };
 
         if(!cascading) {
-            $tag.selectize(
-                $.extend(field.options, defaultFieldOptions)
-            )
-        }
-
-        if(cascading){
-            $tag[0].selectize.clear();
-            $tag[0].selectize.clearOptions();
-            $tag[0].selectize.renderCache['option'] = {};
-            $tag[0].selectize.renderCache['item'] = {};
-            $tag[0].selectize.addOption(field.contents);
-            // $tag[0].selectize.setValue();
+            $tag.data(defaultDataOptions).select2($.extend(field.options, defaultFieldOptions));
         }
     };
 
@@ -645,7 +826,7 @@
         return $tag.val();
     };
 
-    Inputter.prototype.getSelectize = function(field, that) {
+    Inputter.prototype.getSelect2 = function(field, that) {
         return that.getSelect(field, that);
     };
 
@@ -701,10 +882,10 @@
         $tag.val(newValue);
     };
 
-    Inputter.prototype.setSelectize = function(field, newValue, that) {
+    Inputter.prototype.setSelect2 = function(field, newValue, that) {
         var $tag = $("#" + field.id);
 
-        $tag[0].selectize.setValue(newValue);
+        $tag.data('value', newValue).trigger("change");
     };
 
     Inputter.prototype.setChosen = function(field, newValue, that) {

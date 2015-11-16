@@ -1,4 +1,5 @@
 <?php namespace Prograhammer\Inputter;
+use Illuminate\Contracts\Support\MessageBag as MessageBagInterface;
 
 /**
  * Select Class
@@ -11,7 +12,7 @@
  * @package	EasyInput
  * @license	http://www.opensource.org/licenses/mit-license.php MIT
  */
-class InputBuilder{
+class InputField{
 
     protected $type = "";
 
@@ -40,6 +41,8 @@ class InputBuilder{
 
     private $inputter;
 
+    private $messageBag;
+
     public $entityName = "";
 
     public $attribs = [];
@@ -57,23 +60,21 @@ class InputBuilder{
      * @param string $type
      * @param InputterInterface $inputter
      */
-    public function __construct($inputter, $name, $type){
-        $this->inputter = $inputter;
+    public function __construct($name, $type, $namespace){
         $this->name = $name;
         $this->type = $type;
-        $this->namespace = $this->inputter->getNamespace();
         $this->id = empty($namespace) ? $name : $namespace."-".$name;
 
         // For convenience, set tag defaults for typical html inputs
         if($this->type == "text" || $this->type == "password" || $this->type == "hidden" || $this->type == "radio" || $this->type == "checkbox"){
             $this->tag = "input";
-            $this->attribType = $this->type;
+            $this->attribs['type'] = $this->attribType = $this->type;
         }
         elseif($this->type == "autocomplete" || $this->type == "datetimepicker"){
             $this->tag = "input";
-            $this->attribType = "text";
+            $this->attribs['type'] = $this->attribType = "text";
         }
-        elseif($this->type == "select" || $this->type = "select2"){
+        elseif($this->type == "select" || $this->type == "chosen" || $this->type = "select2"){
             $this->tag = "select";
         }
     }
@@ -82,9 +83,17 @@ class InputBuilder{
     public function getValue(){
         return $this->value;
     }
+    public function getId(){
+        return $this->id;
+    }
+
     public function setValue($value){
         $this->value = htmlentities($value, ENT_QUOTES,'UTF-8');
         return $this;
+    }
+
+    public function getType(){
+        return $this->type;
     }
 
     public function getName(){
@@ -121,6 +130,9 @@ class InputBuilder{
     }
 
     public function setAttribs($attribs = []){
+        if(!isset($attribs['type']) && !empty($this->attribType)){
+            $attribs['type'] = $this->attribType;
+        }
         $this->attribs = $attribs;
         return $this;
     }
@@ -143,32 +155,24 @@ class InputBuilder{
         return $this;
     }
 
-    public function runContents($fields, $values){
+    public function invokeContents($value, $field){
         if(!is_callable($this->contents)){
-            return;
+            return $this->contents;
         }
-
-        try {
-            $this->contents = call_user_func_array($this->contents, [$fields, $values]);
-        } catch (\Exception $e){
-            $this->inputter->getMessageBag()->add("errors", $e->getMessage());
+        else{
+            $this->contents = call_user_func_array($this->contents, [$value, $field]);
+            return $this->contents;
         }
     }
 
-    public function onCommand($onCommand){
+    public function setCommand($onCommand){
         $this->onCommand = $onCommand;
         return $this;
     }
 
-    public function runCommand($fields, $values, $commands){
-        if(!is_callable($this->onCommand)){
-            return;
-        }
-
-        try {
-            call_user_func_array($this->onCommand, [$fields, $values, $commands]);
-        } catch (\Exception $e){
-            $this->inputter->getMessageBag()->add("errors", $e->getMessage());
+    public function invokeCommand($value, $field){
+        if(is_callable($this->onCommand)){
+            call_user_func_array($this->onCommand, [$value, $field]);
         }
     }
 
@@ -186,70 +190,6 @@ class InputBuilder{
     public function setHideInUrl($hideInUrl = null){
         $this->hideInUrl = $hideInUrl;
         return $this;
-    }
-
-    public function renderTag(){
-
-        // Add attributes and classes
-        if(!isset($this->attribs['class'])){
-            $this->attribs['class'] = "";
-        }
-        if(!isset($this->attribs['type']) && !empty($this->attribType)){
-            $this->attribs['type'] = $this->attribType;
-        }
-        if(!is_null($this->hideInUrl)){
-            $this->attribs['data-hide-in-url'] = $this->hideInUrl;
-        }
-        if(!empty($this->cascadeTo)){
-            $this->attribs['class'] = "cascade ".$this->attribs['class'];
-        }
-        $this->attribs['class'] = "inputter ".$this->namespace." ".$this->attribs['class'];
-
-        // Create string of all the attributes to be inserted into the HTML tag
-        $attributes = "";
-        $attributes .= "id='".(ltrim($this->namespace."-","-")).$this->id."' ";
-        $attributes .= "name='".$this->name."' ";
-        $attributes .= "data-name='".$this->name."' ";
-        $attributes .= "data-type='".$this->type."' ";
-        foreach($this->attribs as $attrName => $attrValue){
-            $attributes .= $attrName."='".$attrValue."' ";
-        }
-
-        $tag = "";
-        $numTags = 1;
-
-        // Get number of tags if radio/checkbox
-        if($this->type == "radio" || $this->type == "checkbox"){
-            $numTags = count($this->contents);
-        }
-
-        // Loop through tag creation
-        for($i = 0; $i < $numTags; $i++){
-            $tempTag = "<".$this->tag." ".$attributes."></".$this->tag.">";
-
-            // Add a suffix number to the tag's ID if there is more than one tag (radio/checkbox)
-            if($numTags > 1){
-                $tempTag = str_replace("id='".(ltrim($this->namespace."-","-")).$this->id."'", "id='".(ltrim($this->namespace."-","-")).$this->id.$i."'", $tempTag);
-            }
-
-            $tag .= $tempTag;
-        }
-
-        return $tag;
-	}
-
-
-    public function renderArray(){
-        $data = [];
-
-        $data['id'] = $this->namespace."-".$this->id;
-        $data['type'] = $this->type;
-        $data['value'] = $this->value;
-        $data['options'] = $this->options;
-        $data['hideInUrl'] = $this->hideInUrl;
-        $data['contents'] = $this->contents;
-
-        return $data;
     }
 
 }

@@ -12,10 +12,8 @@ interface InputterInterface {
 	public function addField($name, $type);
 	public function cascade($parent, $previousParent="0");
 	public function toArray($useAlias = false, $includeHidden = false);
-	public function addCommand($key, CommandInterface $command);
 	public function fields($key = null);
-	public function values();
-	public function commands();
+	public function fillCommands();
 	public function render();
 	public function getMessageBag();
 	public function hasErrors();

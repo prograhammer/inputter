@@ -70,6 +70,10 @@ class InputField{
             $this->tag = "input";
             $this->attribs['type'] = $this->attribType = $this->type;
         }
+        elseif($this->type == "textarea"){
+            $this->tag = "textarea";
+            $this->attribs['type'] = $this->attribType = $this->type;
+        }
         elseif($this->type == "autocomplete" || $this->type == "datetimepicker"){
             $this->tag = "input";
             $this->attribs['type'] = $this->attribType = "text";

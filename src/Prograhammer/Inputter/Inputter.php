@@ -81,6 +81,7 @@ class Inputter implements InputterInterface {
 
 	public function fillWith($fill = array()){
 		if(!empty($fill)){
+			$this->originalInput = $fill;
 			// Inputs
 			foreach($this->fields as $inputName => $inputObj){
 				if(isset($fill[$inputName])){
@@ -114,7 +115,7 @@ class Inputter implements InputterInterface {
         foreach ($explodedChildren as $child) {
            if ($child != $previousParent) { // <--prevents infinite loop for inputs that parent each other
 			   try {
-				   $this->fields[$child]->runContents($this->fields(), $this->values());
+				   $this->fields[$child]->invokeContents($this->fields[$child]->getValue(), $this->fields[$child]);
 			   } catch (\Exception $e){
 			   		$this->messageBag->add("errors", $e->getMessage());
 			   }
@@ -151,6 +152,7 @@ class Inputter implements InputterInterface {
 				}
 			}
 		}
+		$data = array_merge($this->originalInput, $data);
 
 		return $data;
 	}

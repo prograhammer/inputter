@@ -388,6 +388,18 @@ var jsonAdapter=$.fn.select2.amd.require('select2/data/customAdapter');
         return data;
     };
 
+    Inputter.prototype.get = function(param) {
+        if(typeof param === "undefined"){  return;  }
+
+        var field, method, value;
+
+        field = this.options.fieldData[param];
+        method = 'get' + capitalizeFirstLetter(field.type);
+        value = executeFunctionByName(method, this, field, this);
+
+        return value;
+    };
+
     Inputter.prototype.set = function(params) {
         if(typeof params === "undefined"){  params = {};  }
 
@@ -599,6 +611,11 @@ var jsonAdapter=$.fn.select2.amd.require('select2/data/customAdapter');
         $tag.val(field.value);
     };
 
+    Inputter.prototype.initTextarea = function(field, cascading, that) {
+        var $tag = $("#" + field.id);
+        $tag.val(field.value);
+    };
+
     Inputter.prototype.initPassword = function(field, cascading, that) {
         that.initText(field);
     };
@@ -754,7 +771,9 @@ var jsonAdapter=$.fn.select2.amd.require('select2/data/customAdapter');
             pageSize: 50
         };
 
-        if(!cascading) {
+        if(cascading) {
+            $tag.data('jsonData', field.contents).trigger('change');
+        } else {
             $tag.data(defaultDataOptions).select2($.extend(field.options, defaultFieldOptions));
         }
     };
@@ -801,6 +820,11 @@ var jsonAdapter=$.fn.select2.amd.require('select2/data/customAdapter');
     // =========================
 
     Inputter.prototype.getText = function(field, that) {
+        var $tag = $("#" + field.id);
+        return $tag.val();
+    };
+
+    Inputter.prototype.getTextarea = function(field, that) {
         var $tag = $("#" + field.id);
         return $tag.val();
     };
@@ -864,6 +888,11 @@ var jsonAdapter=$.fn.select2.amd.require('select2/data/customAdapter');
     // =========================
 
     Inputter.prototype.setText = function(field, newValue, that) {
+        var $tag = $("#" + field.id);
+        $tag.val(newValue);
+    };
+
+    Inputter.prototype.setTextarea = function(field, newValue, that) {
         var $tag = $("#" + field.id);
         $tag.val(newValue);
     };
